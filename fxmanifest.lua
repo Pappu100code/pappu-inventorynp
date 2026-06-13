@@ -3,7 +3,7 @@ game 'gta5'
 
 author "Pappu"
 description 'pappu-inventorynpnp'
-version '1.0.4'
+version '1.0.5'
 
 shared_scripts {
 	'config.lua',

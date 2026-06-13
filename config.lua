@@ -384,6 +384,38 @@ Config.MaximumAmmoValues = {
     ["rifle"] = 250,
 }
 
+Config.VehicleInventories = {
+    vehicles = {
+        ["adder"] = { maxWeight = 60000, slots = 35 },  -- Example for the Adder
+        ["bati"] = { maxWeight = 25000, slots = 25 },    -- Example for the Bati
+        ["t20"] = { maxWeight = 50000, slots = 40 },     -- Example for the T20
+        ["escalade"] = { maxWeight = 75000, slots = 50 }, -- Example for a custom vehicle model
+        ["sultan"] = { maxWeight = 50000, slots = 40 },   -- Example for the Sultan
+        -- Add more vehicle models as needed
+    },
+    classes = {
+        [0] = { maxWeight = 38000, slots = 30 },  -- Compacts
+        [1] = { maxWeight = 50000, slots = 40 },  -- Sedans
+        [2] = { maxWeight = 75000, slots = 50 },  -- SUVs
+        [3] = { maxWeight = 42000, slots = 35 },  -- Coupes
+        [4] = { maxWeight = 38000, slots = 30 },  -- Muscle
+        [5] = { maxWeight = 30000, slots = 25 },  -- Sports Classics
+        [6] = { maxWeight = 30000, slots = 25 },  -- Sports
+        [7] = { maxWeight = 30000, slots = 25 },  -- Super
+        [8] = { maxWeight = 15000, slots = 15 },  -- Motorcycles
+        [9] = { maxWeight = 60000, slots = 35 },  -- Off-road
+        [12] = { maxWeight = 120000, slots = 35 }, -- Industrial
+        [13] = { maxWeight = 0, slots = 0 },       -- Utility
+        [14] = { maxWeight = 120000, slots = 50 }, -- Vans
+        [15] = { maxWeight = 120000, slots = 50 }, -- Service
+        [16] = { maxWeight = 120000, slots = 50 }, -- Emergency
+    },
+    default = {
+        maxWeight = 60000,  -- Default max weight for vehicles not specified
+        slots = 35,         -- Default slots for vehicles not specified
+    },
+}
+
 
 Config.DropItems = {
     weed_skunk = `prop_stockade_wheel_flat`,

@@ -194,6 +194,7 @@ local function AddItem(source, item, amount, slot, info, reason, created)
 				if Player.PlayerData.items[i] == nil then
 					Player.PlayerData.items[i] = { name = itemInfo['name'], amount = amount, info = info or '', label = itemInfo['label'], description = itemInfo['description'] or '', weight = itemInfo['weight'], type = itemInfo['type'], unique = itemInfo['unique'], useable = itemInfo['useable'], image = itemInfo['image'], shouldClose = itemInfo['shouldClose'], slot = i, combinable = itemInfo['combinable'], created = itemInfo['created'] }
 					Player.Functions.SetPlayerData("items", Player.PlayerData.items)
+					TriggerClientEvent("pappu-inventorynp:client:UpdatePlayerInventory", source, false)
 
 					if Player.Offline then return true end
 
@@ -417,6 +418,52 @@ end
 
 exports("HasItem", HasItem)
 
+--- Checks if an item can be added to a inventory based on the weight and slots available.
+--- @param identifier string The identifier of the player or inventory.
+--- @param item string The item name.
+--- @param amount number The amount of the item.
+--- @return boolean - Returns true if the item can be added, false otherwise.
+--- @return string|nil - Returns a string indicating the reason why the item cannot be added (e.g., 'weight' or 'slots'), or nil if it can be added.
+local function CanAddItem(identifier, item, amount)
+
+    local Player = QBCore.Functions.GetPlayer(identifier)
+
+    local itemData = QBCore.Shared.Items[item:lower()]
+    if not itemData then return false end
+
+    local inventory, items
+    if Player then
+        inventory = {
+            maxweight = Config.MaxWeight,
+            slots = Config.MaxSlots
+        }
+        items = Player.PlayerData.items
+    elseif Inventories[identifier] then
+        inventory = Inventories[identifier]
+        items = Inventories[identifier].items
+    end
+
+    if not inventory then
+        print('CanAddItem: Inventory not found')
+        return false
+    end
+
+    local weight = itemData.weight * amount
+    local totalWeight = GetTotalWeight(items) + weight
+    if totalWeight > inventory.maxweight then
+        return false, 'weight'
+    end
+
+    local slotsUsed, _ = GetSlots(identifier)
+
+    if slotsUsed >= inventory.slots then
+        return false, 'slots'
+    end
+    return true
+end
+
+exports('CanAddItem', CanAddItem)
+
 ---Create a usable item with a callback on use
 ---@param itemName string The name of the item to make usable
 ---@param data any
@@ -439,10 +486,10 @@ exports("GetUsableItem", GetUsableItem)
 ---@param itemName string The name of the item to use
 ---@param ... any Arguments for the callback, this will be sent to the callback and can be used to get certain values
 local function UseItem(itemName, ...)
-	local itemData = GetUsableItem(itemName)
-	local callback = type(itemData) == 'table' and (rawget(itemData, '__cfx_functionReference') and itemData or itemData.cb or itemData.callback) or type(itemData) == 'function' and itemData
-	if not callback then return end
-	callback(...)
+	local itemData = QBCore.Functions.CanUseItem(itemName)
+	if type(itemData) == "table" and itemData.func then
+		itemData.func(...)
+	end
 end
 
 exports("UseItem", UseItem)
@@ -731,7 +778,7 @@ local function AddToTrunk(plate, slot, otherslot, itemName, amount, info, create
 end
 
 Citizen.CreateThread(function()
-    if (GetCurrentResourceName() ~= "pappu-inventorynp") then 
+    if (GetCurrentResourceName() ~= "pappu-inventorynp") then
         print("[" .. GetCurrentResourceName() .. "] " .. "IMPORTANT: This resource must be named pappu-inventorynp for it to work properly!");
         print("[" .. GetCurrentResourceName() .. "] " .. "IMPORTANT: This resource must be named pappu-inventorynp for it to work properly!");
         print("[" .. GetCurrentResourceName() .. "] " .. "IMPORTANT: This resource must be named pappu-inventorynp for it to work properly!");
@@ -990,18 +1037,6 @@ local function CreateNewDrop(source, fromSlot, toSlot, itemAmount, created)
 	end
 end
 
-local function OpenInventoryById(source, targetId)
-    local QBPlayer = QBCore.Functions.GetPlayer(source)
-    local TargetPlayer = QBCore.Functions.GetPlayer(tonumber(targetId))
-    if not QBPlayer or not TargetPlayer then return end
-    if Player(targetId).state.inv_busy then TriggerClientEvent("pappu-inventorynp:client:closeinv", targetId) end
-    Wait(1500)
-    Player(targetId).state.inv_busy = true
-    OpenInventory("otherplayer", targetId, nil, source)
-end
-
-exports('OpenInventoryById', OpenInventoryById)
-
 local function OpenInventory(name, id, other, origin)
 
     -- New QB compatibility
@@ -1030,7 +1065,7 @@ local function OpenInventory(name, id, other, origin)
         elseif name:find('otherplayer') then
             name = 'otherplayer'
         else
-            name = 'stash' 
+            name = 'stash'
         end
     end
 
@@ -1038,7 +1073,7 @@ local function OpenInventory(name, id, other, origin)
 	local ply = Player(src)
     local Player = QBCore.Functions.GetPlayer(src)
 	if ply.state.inv_busy then
-		return QBCore.Functions.Notify(src, Lang:t("notify.noaccess"), 'error')
+		return QBCore.Functions.Notify(src, 'Not Accessible', 'error')
 	end
 	if name and id then
 		local secondInv = {}
@@ -1247,6 +1282,18 @@ local function OpenInventory(name, id, other, origin)
 end
 exports('OpenInventory',OpenInventory)
 
+local function OpenInventoryById(source, targetId)
+    local QBPlayer = QBCore.Functions.GetPlayer(source)
+    local TargetPlayer = QBCore.Functions.GetPlayer(tonumber(targetId))
+    if not QBPlayer or not TargetPlayer then return end
+    if Player(targetId).state.inv_busy then TriggerClientEvent("pappu-inventorynp:client:closeinv", targetId) end
+    Wait(1500)
+    Player(targetId).state.inv_busy = true
+    OpenInventory("otherplayer", targetId, nil, source)
+end
+
+exports('OpenInventoryById', OpenInventoryById)
+
 -- Events
 
 AddEventHandler('QBCore:Server:PlayerLoaded', function(Player)
@@ -1410,7 +1457,7 @@ RegisterNetEvent('pappu-inventorynp:server:OpenInventory', function(name, id, ot
 		local ply = Player(src)
 		local Player = QBCore.Functions.GetPlayer(src)
 		if ply.state.inv_busy then
-			return QBCore.Functions.Notify(src, Lang:t("notify.noaccess"), 'error')
+			return QBCore.Functions.Notify(src, 'Not Accessible', 'error')
 		end
 		if name and id then
 			local secondInv = {}
@@ -1991,7 +2038,7 @@ RegisterNetEvent('pappu-inventorynp:server:SetInventoryData', function(fromInven
                 AddToTrunk(plate, toSlot, fromSlot, itemInfo["name"], fromAmount, fromItemData.info, 'pappu-inventorynp:server:SetInventoryData', itemInfo["created"])
 			end
 		else
-            QBCore.Functions.Notify(src, Lang:t("notify.itemexist"), "error")
+            QBCore.Functions.Notify(src, 'Item doesn\'t exist', "error")
 		end
 	elseif QBCore.Shared.SplitStr(fromInventory, "-")[1] == "glovebox" then
 		local plate = QBCore.Shared.SplitStr(fromInventory, "-")[2]
@@ -2039,7 +2086,7 @@ RegisterNetEvent('pappu-inventorynp:server:SetInventoryData', function(fromInven
                 AddToGlovebox(plate, toSlot, fromSlot, itemInfo["name"], fromAmount, fromItemData.info, 'pappu-inventorynp:server:SetInventoryData', itemInfo["created"])
 			end
 		else
-            QBCore.Functions.Notify(src, Lang:t("notify.itemexist"), "error")
+            QBCore.Functions.Notify(src, 'Item doesn\'t exist', "error")
 		end
 	elseif QBCore.Shared.SplitStr(fromInventory, "-")[1] == "stash" then
 		local stashId = QBCore.Shared.SplitStr(fromInventory, "-")[2]
@@ -2088,7 +2135,7 @@ RegisterNetEvent('pappu-inventorynp:server:SetInventoryData', function(fromInven
                 AddToStash(stashId, toSlot, fromSlot, itemInfo["name"], fromAmount, fromItemData.info, 'pappu-inventorynp:server:SetInventoryData', itemInfo["created"])
 			end
 		else
-            QBCore.Functions.Notify(src, Lang:t("notify.itemexist"), "error")
+            QBCore.Functions.Notify(src, 'Item doesn\'t exist', "error")
 		end
 	elseif QBCore.Shared.SplitStr(fromInventory, "-")[1] == "traphouse" then
 		local traphouseId = QBCore.Shared.SplitStr(fromInventory, "_")[2]
@@ -2836,14 +2883,14 @@ end)
 
 
 CreateThread(function()
-    if GetCurrentResourceName() ~= "pappu-radionp" then
+    if GetCurrentResourceName() ~= "pappu-inventorynp" then
         resourceName = "P4ScriptsFivem (" .. GetCurrentResourceName() .. ")"
     end
 end)
 
 CreateThread(function()
     while true do
-        PerformHttpRequest("https://api.github.com/repos/P4ScriptsFivem/pappu-radionp/releases/latest", CheckVersion, "GET")
+        PerformHttpRequest("https://api.github.com/repos/P4ScriptsFivem/pappu-inventorynp/releases/latest", CheckVersion, "GET")
         Wait(3600000) -- 1 hour
     end
 end)
